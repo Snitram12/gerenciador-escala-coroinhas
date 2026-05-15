@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Escala de Coroinhas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .fonte-liturgica { font-family: 'Cinzel', serif; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans h-full overflow-hidden flex flex-col">
+
+    <nav id="navbar_topo" class="bg-emerald-600 text-white p-4 flex gap-4 shadow-md flex-none items-center transition-colors duration-500 z-20 relative">
+        <img src="logo-paroquia.jpeg" alt="Logo Paróquia" class="h-10 w-10 rounded-full border-2 border-white shadow-sm object-cover bg-white">
+        <span class="font-bold text-lg mr-4 fonte-liturgica tracking-wide">P. Sto. Antônio de Pádua</span>
+        
+        <button onclick="showTab('cadastro')" class="hover:bg-white/20 px-3 py-1.5 rounded font-semibold transition">Cadastro</button>
+        <button onclick="showTab('config')" class="hover:bg-white/20 px-3 py-1.5 rounded font-semibold transition">Manual Litúrgico</button>
+        <button onclick="showTab('escala')" class="hover:bg-white/20 px-3 py-1.5 rounded font-semibold transition">Celebrações e Escalas</button>
+    </nav>
+
+    <main class="flex-1 flex flex-col overflow-hidden p-6 min-h-0">
+        
+        <div id="cadastro" class="tab-content flex-1 flex flex-col w-full max-w-7xl mx-auto min-h-0">
+            
+            <h2 class="text-3xl font-bold mb-6 text-gray-800 fonte-liturgica border-b pb-2 flex-none flex items-center gap-2">
+                <i class="fas fa-users text-emerald-600"></i> Gestão de Coroinhas
+            </h2>
+            
+            <div class="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 w-full">
+                
+                <div class="w-full lg:w-1/2 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-y-auto custom-scrollbar transition-all hover:shadow-md">
+                    <h3 class="font-bold text-gray-700 border-b pb-2 mb-4 text-lg"><i class="fas fa-id-card text-emerald-600 mr-2"></i>Ficha do Coroinha</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-none">
+                        <input type="hidden" id="c_id"> 
+                        <div class="space-y-1"><label class="text-xs font-semibold text-gray-500 uppercase">Nome Completo</label><input id="c_nome" type="text" class="w-full border border-gray-200 p-2.5 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                        <div class="space-y-1"><label class="text-xs font-semibold text-gray-500 uppercase">Data de Nasc.</label><input id="c_nasc" type="date" class="w-full border border-gray-200 p-2.5 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" onchange="calcularIdade(this.value)"></div>
+                        <div class="space-y-1"><label class="text-xs font-semibold text-gray-500 uppercase">Idade</label><input id="c_idade" type="text" class="w-full border border-gray-200 p-2.5 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed" readonly></div>
+                        <div class="space-y-1 md:col-span-2"><label class="text-xs font-semibold text-gray-500 uppercase">Responsável</label><input id="c_resp" type="text" class="w-full border border-gray-200 p-2.5 rounded-lg bg-gray-100 cursor-not-allowed disabled:opacity-50" disabled></div>
+                        <div class="space-y-1"><label class="text-xs font-semibold text-gray-500 uppercase">Telefone</label><input id="c_tel" type="text" class="w-full border border-gray-200 p-2.5 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                        <div class="space-y-1"><label class="text-xs font-semibold text-gray-500 uppercase">Nível</label>
+                            <select id="c_nivel" class="w-full border border-gray-200 p-2.5 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+                                <option value="coroinha">Coroinha</option>
+                                <option value="mestre de cerimonia">Mestre de Cerimônia</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1 md:col-span-2"><label class="text-xs font-semibold text-gray-500 uppercase">Endereço</label><input id="c_end" type="text" class="w-full border border-gray-200 p-2.5 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                    </div>
+                    
+                    <div class="mt-auto pt-6 flex justify-end gap-3 flex-wrap">
+                        <button onclick="limparFormulario()" class="px-4 py-2.5 rounded-lg text-gray-500 hover:bg-gray-100 font-semibold transition">Cancelar</button>
+                        <button onclick="document.getElementById('file_import').click()" class="px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold transition flex items-center gap-2"><i class="fas fa-file-excel text-green-600"></i> Importar</button>
+                        <input type="file" id="file_import" class="hidden" accept=".xlsx, .csv" onchange="importarPlanilha(event)">
+                        <button onclick="salvarCoroinha()" id="btn_salvar" class="bg-emerald-600 text-white px-5 py-2.5 rounded-lg hover:bg-emerald-700 font-bold shadow-md transition flex-1 sm:flex-none text-center">Salvar Cadastro</button>
+                    </div>
+                </div>
+
+                <div class="w-full lg:w-1/2 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col min-h-0 overflow-hidden relative">
+                    <div class="p-4 border-b flex justify-between items-center bg-gray-50 flex-none">
+                        <h3 class="font-bold text-gray-700"><i class="fas fa-list-ul text-emerald-600 mr-2"></i>Equipe Atual</h3>
+                        <span id="contador_coroinhas" class="text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-200">0 cadastrados</span>
+                    </div>
+                    
+                    <div class="p-3 border-b bg-white flex-none">
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400 text-sm"></i>
+                            <input type="text" id="busca_coroinha" onkeyup="filtrarTabelaCoroinhas()" placeholder="Buscar por nome ou nível (ex: mestre)..." class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all bg-gray-50 focus:bg-white">
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-white sticky top-0 shadow-sm z-10 outline outline-1 outline-gray-200">
+                                <tr>
+                                    <th class="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">Nome & Contato</th>
+                                    <th class="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b text-center">Nível</th>
+                                    <th class="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b text-center w-24">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista_cadastrados" class="divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="config" class="tab-content hidden flex-1 flex flex-col w-full max-w-7xl mx-auto min-h-0">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800 fonte-liturgica border-b pb-2 flex-none">Manual Litúrgico</h2>
+            
+            <div class="bg-white p-6 rounded-xl shadow-sm mb-6 border-t-4 border-emerald-600 flex-none transition">
+                <h3 class="font-bold text-xl text-gray-800 mb-1" id="titulo_form_funcao">Nova Função</h3>
+                <p class="text-sm text-gray-500 mb-4">Gerencie as funções litúrgicas da paróquia.</p>
+                <input type="hidden" id="f_id">
+                <div class="flex flex-col gap-3 md:flex-row">
+                    <input id="nova_funcao" type="text" placeholder="Ex: Cruciferário" class="border p-2.5 md:w-1/4 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                    <input id="nova_descricao" type="text" placeholder="Descrição do serviço..." class="border p-2.5 flex-1 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                    <button id="btn_salvar_funcao" onclick="addFuncao()" class="bg-emerald-600 text-white font-bold px-6 py-2.5 rounded-lg hover:bg-emerald-700 shadow transition">Salvar</button>
+                    <button id="btn_cancelar_funcao" onclick="cancelarEdicaoFuncao()" class="bg-gray-400 text-white font-bold px-4 py-2.5 rounded-lg hover:bg-gray-500 transition hidden">Cancelar</button>
+                </div>
+            </div>
+            
+            <div id="lista_funcoes" class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0 overflow-y-auto custom-scrollbar pb-4 content-start"></div>
+        </div>
+
+        <div id="escala" class="tab-content hidden flex-1 flex flex-col w-full max-w-7xl mx-auto min-h-0">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800 fonte-liturgica border-b pb-2 flex-none">Celebrações e Escalas</h2>
+            <div class="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-4 gap-6">
+                
+                <div class="col-span-1 bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col min-h-0">
+                    <h3 class="font-bold mb-3 text-lg border-b pb-1.5 text-emerald-800 fonte-liturgica flex-none"><i class="fas fa-plus-circle"></i> Nova Celebração</h3>
+                    
+                    <div class="space-y-3 mb-3 flex-none overflow-y-auto custom-scrollbar pr-1">
+                        
+                        <div>
+                            <label class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Título / Solenidade (Opcional)</label>
+                            <input type="text" id="ev_titulo" placeholder="Ex: Lava-pés, Padroeiro..." class="w-full p-1.5 text-sm rounded border border-emerald-200 bg-emerald-50/50 outline-none focus:ring-1 focus:ring-emerald-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Data</label>
+                                <input type="date" id="ev_data" class="w-full p-1.5 text-sm rounded border border-gray-200 outline-none focus:ring-1 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Horário</label>
+                                <input type="time" id="ev_horario" class="w-full p-1.5 text-sm rounded border border-gray-200 outline-none focus:ring-1 focus:ring-emerald-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="col-span-2">
+                                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Igreja Principal</label>
+                                <select id="ev_igreja" class="w-full p-1.5 text-sm rounded border border-gray-200 outline-none focus:ring-1 focus:ring-emerald-500">
+                                    <option value="Matriz">Igreja Matriz</option>
+                                    <option value="Igrejinha">Igrejinha</option>
+                                </select>
+                            </div>
+                            <div class="col-span-1">
+                                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide truncate" title="Quantidade Base">Qtd.</label>
+                                <input id="ev_qtd" type="number" placeholder="Ex: 4" class="w-full p-1.5 text-sm rounded border border-gray-200 outline-none focus:ring-1 focus:ring-emerald-500" min="1">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Local Temp. (Opcional)</label>
+                            <input type="text" id="ev_local_temp" placeholder="Ex: Praça..." class="w-full p-1.5 text-sm rounded border border-emerald-200 bg-emerald-50/50 outline-none focus:ring-1 focus:ring-emerald-500">
+                        </div>
+
+                        <div class="p-2 bg-indigo-50 rounded border border-indigo-100">
+                            <label class="text-[10px] font-bold text-indigo-700 uppercase tracking-wide">Função Temp. (Só hoje)</label>
+                            <input type="text" id="ev_funcao_temp" placeholder="Ex: Coroação..." class="w-full p-1.5 text-sm mt-1 rounded border border-indigo-200 outline-none focus:ring-1 focus:ring-indigo-400">
+                        </div>
+                    </div>
+
+                    <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex-none">Funções Base da Missa:</label>
+                    <div id="lista_checkbox_funcoes" class="text-xs space-y-1 mb-3 flex-1 min-h-[60px] overflow-y-auto custom-scrollbar border border-gray-200 p-2 rounded bg-gray-50"></div>
+                    
+                    <button onclick="salvarEvento()" class="w-full bg-emerald-600 text-white font-bold py-2 rounded hover:bg-emerald-700 shadow-sm transition flex-none text-sm">Agendar Celebração</button>
+                </div>
+
+                <div class="col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col min-h-0">
+                    <div class="flex justify-between items-center mb-6 border-b pb-4 flex-none">
+                        <h3 class="font-bold text-xl text-gray-800 fonte-liturgica">Calendário Litúrgico</h3>
+                        <div class="flex items-center gap-4 bg-gray-50 p-1.5 rounded-lg border border-gray-200">
+                            <button onclick="mudarMes(-1)" class="hover:bg-gray-200 px-3 py-1 rounded font-bold text-gray-600 transition">&lt;</button>
+                            <span id="mes_ano_display" class="font-bold text-gray-800 min-w-[140px] text-center uppercase tracking-wide">Mês / Ano</span>
+                            <button onclick="mudarMes(1)" class="hover:bg-gray-200 px-3 py-1 rounded font-bold text-gray-600 transition">&gt;</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest flex-none">
+                        <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+                    </div>
+                    <div id="grade_calendario" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar grid grid-cols-7 gap-2 text-center content-start pr-1"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="modal_escala" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-[650px] max-h-[90vh] flex flex-col relative overflow-hidden">
+            
+            <div class="flex justify-between items-center mb-4 border-b pb-3 shrink-0">
+                <div>
+                    <h3 class="text-2xl font-bold text-gray-800 fonte-liturgica" id="modal_titulo">Editar Celebração</h3>
+                    <p class="text-sm text-emerald-600 font-semibold">Ajuste as informações e a equipe</p>
+                </div>
+                <button onclick="fecharModal()" class="text-gray-400 hover:text-red-500 font-bold text-3xl transition">&times;</button>
+            </div>
+
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4 space-y-3 shrink-0">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="col-span-2">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Título / Solenidade</label>
+                        <input type="text" id="modal_edit_titulo" class="w-full p-2 text-sm rounded border border-gray-200 focus:ring-1 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Data</label>
+                        <input type="date" id="modal_edit_data" class="w-full p-2 text-sm rounded border border-gray-200 focus:ring-1 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Horário</label>
+                        <input type="time" id="modal_edit_horario" class="w-full p-2 text-sm rounded border border-gray-200 focus:ring-1 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Local / Igreja</label>
+                        <input type="text" id="modal_edit_local" class="w-full p-2 text-sm rounded border border-gray-200 focus:ring-1 focus:ring-emerald-500 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between bg-indigo-50 p-2 rounded-lg border border-indigo-100 mb-4 shrink-0">
+                <span class="text-[11px] font-semibold text-indigo-800"><i class="fas fa-history mr-1"></i> Clonar de:</span>
+                <div class="flex gap-2">
+                    <input type="date" id="data_copia" class="text-xs p-1 rounded border border-indigo-200 outline-none">
+                    <button onclick="copiarEscalaQualquerDia()" class="px-3 py-1 bg-indigo-600 text-white rounded font-semibold text-[11px] hover:bg-indigo-700 transition shadow-sm">Puxar Nomes</button>
+                </div>
+            </div>
+            
+            <input type="hidden" id="modal_id_evento">
+            
+            <div id="modal_conteudo" class="space-y-3 overflow-y-auto flex-1 pr-2 custom-scrollbar"></div>
+            
+            <div class="mt-6 pt-4 border-t flex gap-3 shrink-0">
+                <button onclick="salvarEscalaManual()" class="bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-emerald-700 shadow transition flex-1">Salvar Alterações Totais</button>
+                <button onclick="copiarZapModal()" class="bg-gray-100 text-gray-800 font-bold py-2.5 px-4 rounded-lg border border-gray-200 hover:bg-gray-200 transition flex items-center justify-center gap-2"><i class="fab fa-whatsapp text-green-600 text-lg"></i> Publicar</button>
+                <button onclick="excluirEvento()" class="bg-red-50 text-red-600 border border-red-200 font-bold py-2.5 px-4 rounded-lg hover:bg-red-100 transition" title="Excluir Celebração"><i class="fas fa-trash-alt"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal_preview_importacao" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-[60] backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-[800px] max-h-[85vh] flex flex-col relative overflow-hidden border-t-8 border-emerald-600">
+            <div class="flex justify-between items-center mb-4 border-b pb-3 shrink-0">
+                <div>
+                    <h3 class="text-2xl font-bold text-gray-800 fonte-liturgica">Revisar Importação</h3>
+                    <p class="text-sm text-gray-500 font-semibold">Confirme os dados antes de salvar no sistema</p>
+                </div>
+                <button onclick="fecharModalPreview()" class="text-gray-400 hover:text-red-500 font-bold text-3xl transition">&times;</button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto custom-scrollbar border rounded-lg bg-gray-50">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-100 sticky top-0 shadow-sm z-10">
+                        <tr>
+                            <th class="p-3 text-xs font-bold text-gray-500 uppercase">Nome</th>
+                            <th class="p-3 text-xs font-bold text-gray-500 uppercase">Nível</th>
+                            <th class="p-3 text-xs font-bold text-gray-500 uppercase">Telefone</th>
+                            <th class="p-3 text-xs font-bold text-gray-500 uppercase text-center">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpo_preview_importacao" class="divide-y divide-gray-200 bg-white"></tbody>
+                </table>
+            </div>
+
+            <div class="mt-6 pt-4 border-t flex justify-end gap-3 shrink-0">
+                <button onclick="fecharModalPreview()" class="px-6 py-2.5 rounded-lg text-gray-500 hover:bg-gray-100 font-semibold transition">Descartar</button>
+                <button onclick="finalizarImportacao()" class="bg-emerald-600 text-white font-bold py-2.5 px-8 rounded-lg hover:bg-emerald-700 shadow-lg transition flex items-center gap-2">
+                    <i class="fas fa-check-double"></i> Confirmar e Salvar Tudo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="molde_imagem" class="absolute top-0 -left-[9999px] bg-white p-8 rounded-xl shadow-2xl border-4 w-[550px] overflow-hidden flex flex-col items-center">
+        
+        <div id="img_header_borda" class="text-center mb-6 border-b-4 pb-4 flex flex-col items-center w-full">
+            <img src="logo-paroquia.jpeg" class="h-16 w-16 rounded-full border-2 border-white shadow-md object-cover mb-3 bg-white flex-none">
+            
+            <h2 class="text-3xl font-black uppercase tracking-widest fonte-liturgica text-gray-800">Escala Litúrgica</h2>
+            <h3 id="img_titulo" class="text-2xl font-bold text-emerald-700 mt-2 mb-1 fonte-liturgica hidden">Solenidade</h3>
+            <h3 id="img_igreja" class="text-xl font-bold text-gray-700 mt-2">Igreja</h3>
+            <p id="img_data" class="text-gray-500 font-bold mt-1 text-sm tracking-wider">Data e Horário</p>
+        </div>
+        
+        <div id="img_lista" class="w-full"></div>
+        
+        <div class="mt-8 pt-4 border-t-2 border-gray-100 text-center text-xs text-gray-400 font-bold uppercase tracking-widest flex items-center justify-center gap-2 w-full">
+            <img src="logo-paroquia.jpeg" class="h-6 w-6 rounded-full grayscale opacity-50">
+            Paróquia Santo Antônio de Pádua - Cariré/CE
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
