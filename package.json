@@ -4,8 +4,10 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "start": "electron .",
+    "start:electron": "electron .",
+    "start:web": "node server.js",
     "postinstall": "electron-builder install-app-deps",
     "dist": "electron-builder"
   },
@@ -27,6 +29,7 @@
     "electron-builder": "^26.8.1"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "better-sqlite3": "^12.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

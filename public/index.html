@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Gerenciador de Escala - Cariré</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        html, body { min-width: 0; min-height: 100%; }
+        body { overflow-x: hidden; min-height: 100vh; }
+        main { min-width: 0; min-height: 0; }
+        .fonte-liturgica { font-family: 'Cinzel', serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        .calendario-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background-color: #e5e7eb; border: 1px solid #e5e7eb; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+        .calendario-cell { background-color: white; min-height: 100px; max-height: none; padding: 6px; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+        .calendario-cell.hoje { background-color: #f0fdf4; }
+        .calendario-cell.vazio { background-color: #f9fafb; }
+
+        @media (max-width: 768px) {
+            nav#navbar_topo { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+            nav#navbar_topo .text-right { width: 100%; text-align: left; }
+            .calendario-grid { grid-template-columns: repeat(7, minmax(120px, 1fr)); }
+            .calendario-cell { min-height: 90px; padding: 5px; }
+            .custom-scrollbar { scrollbar-width: thin; }
+            .dashboard-actions { flex-wrap: wrap; }
+            .dashboard-actions > button { flex: 1 1 auto; min-width: 0; }
+            .mobile-tab-btn { flex: 1 1 auto; flex-shrink: 1; min-width: 0; max-width: 120px; padding: 0.55rem 0.75rem; border-radius: 9999px; border: 1px solid transparent; font-size: 0.72rem; font-weight: 700; white-space: normal; line-height: 1.2; text-align: center; overflow-wrap: anywhere; word-break: break-word; }
+            .mobile-tab-btn.active { background-color: #dcfce7; border-color: #bbf7d0; color: #166534; }
+            .overflow-x-auto { min-width: 0; }
+            .overflow-x-auto table { min-width: 100% !important; }
+            #aba-formacao { min-height: 0; height: auto; }
+            #aba-formacao .overflow-x-auto { min-width: 0; }
+            #aba-formacao .overflow-x-auto table { min-width: 380px !important; width: 100%; }
+            #aba-formacao .bg-white.rounded-xl { flex: 1 1 auto; min-height: 0; }
+            .tree-root { display: flex; flex-direction: column; gap: 2rem; align-items: center; width: 100%; min-width: 0; }
+            .tree-level { display: flex; justify-content: center; gap: 1rem; width: 100%; }
+            .tree-node-wrapper { min-width: 150px; display: flex; justify-content: center; align-items: flex-start; }
+            .tree-node { position: relative; width: 150px; }
+            .tree-node.has-children::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 2px; height: 2rem; background-color: currentColor; }
+            .tree-node .tree-box { display: flex; flex-direction: column; align-items: center; gap: 0.55rem; padding: 1rem; border-radius: 1.25rem; border: 1px solid rgba(255,255,255,0.12); background-color: rgba(255,255,255,0.08); backdrop-filter: blur(12px); }
+            .tree-node .tree-box.active { background-color: rgba(255,255,255,0.16); border-color: rgba(245,158,11,0.25); }
+            .tree-node .tree-box.locked { opacity: 0.55; }
+            .tree-node .tree-box:hover { transform: translateY(-1px); }
+            .tree-node .tree-box { transition: transform 0.25s ease, background-color 0.25s ease, border-color 0.25s ease; }
+            .text-3xl { font-size: 1.55rem; }
+            .text-2xl { font-size: 1.3rem; }
+            .text-xl { font-size: 1.05rem; }
+            .text-lg { font-size: 0.95rem; }
+            .text-base { font-size: 0.84rem; }
+            .text-sm { font-size: 0.75rem; }
+            .text-xs { font-size: 0.66rem; }
+            .mobile-card-text { font-size: 0.72rem; }
+            .mobile-card-title { font-size: 0.95rem; }
+            .mobile-heading { font-size: 1.35rem; }
+            .mobile-subheading { font-size: 0.78rem; }
+            .card-max { max-width: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans h-full overflow-x-hidden flex flex-col">
+
+    <nav id="navbar_topo" class="bg-emerald-600 text-white px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between shadow-md flex-none border-b-4 border-amber-500 transition-colors duration-500">
+        <div class="flex items-center gap-3">
+            <img src="logo-paroquia.jpeg" class="h-10 w-10 rounded-full border-2 border-white object-cover bg-white">
+            <div>
+                <h1 class="text-xl font-black tracking-wide uppercase font-serif">Santo Antônio de Pádua</h1>
+                <p class="text-xs text-emerald-100 font-bold tracking-widest uppercase">Paróquia de Cariré</p>
+            </div>
+        </div>
+        <div class="text-right">
+            <p id="txt_data_atual" class="text-sm font-bold opacity-90"></p>
+            <p class="text-[10px] font-black uppercase tracking-widest text-amber-300 mt-0.5"><i class="fas fa-circle text-xs text-amber-400 animate-pulse mr-1"></i>Sistema Local Offline</p>
+        </div>
+    </nav>
+
+    <div class="md:hidden bg-white border-b border-gray-200 px-3 py-2 overflow-x-auto sticky top-0 z-20 shadow-sm">
+        <div class="flex gap-2 min-w-max">
+            <button id="mobile-aba-dashboard" onclick="mudarAba('dashboard')" class="mobile-tab-btn bg-emerald-50 text-emerald-700">Dashboard</button>
+            <button id="mobile-aba-cadastro" onclick="mudarAba('cadastro')" class="mobile-tab-btn text-gray-700">Cadastrar</button>
+            <button id="mobile-aba-lista" onclick="mudarAba('lista')" class="mobile-tab-btn text-gray-700">Membros</button>
+            <button id="mobile-aba-calendario" onclick="mudarAba('calendario')" class="mobile-tab-btn text-gray-700">Calendário</button>
+            <button id="mobile-aba-formacao" onclick="mudarAba('formacao')" class="mobile-tab-btn text-gray-700">Formação</button>
+        </div>
+    </div>
+
+    <div class="flex flex-1 flex-col md:flex-row overflow-hidden w-full">
+        
+        <aside class="hidden md:flex w-full md:w-64 bg-white border-b border-gray-200 md:border-b-0 md:border-r flex flex-col justify-between p-4 flex-none shadow-sm">
+            <div class="flex flex-col gap-1.5">
+                <p class="text-[10px] font-black tracking-widest text-gray-400 uppercase px-3 mb-2">Navegação Principal</p>
+                
+                <button onclick="mudarAba('dashboard')" id="btn-aba-dashboard" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-bold text-emerald-700 bg-emerald-50 transition-all">
+                    <i class="fas fa-chart-pie text-lg w-5 text-center"></i> Dashboard Geral
+                </button>
+                
+                <button onclick="mudarAba('cadastro')" id="btn-aba-cadastro" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all">
+                    <i class="fas fa-user-plus text-lg w-5 text-center"></i> Cadastrar Membro
+                </button>
+                
+                <button onclick="mudarAba('lista')" id="btn-aba-lista" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all">
+                    <i class="fas fa-users text-lg w-5 text-center"></i> Lista de Membros
+                </button>
+                
+                <button onclick="mudarAba('calendario')" id="btn-aba-calendario" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all">
+                    <i class="fas fa-calendar-alt text-lg w-5 text-center"></i> Grade do Calendário
+                </button>
+
+                <button onclick="mudarAba('formacao')" id="btn-aba-formacao" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all">
+                    <i class="fas fa-book-open text-lg w-5 text-center"></i> Módulo Formação
+                </button>
+            </div>
+            <div class="bg-gray-50 p-3 rounded-xl border border-gray-100 flex flex-col gap-2">
+                <div class="flex items-center gap-2 mb-1">
+                    <i class="fab fa-google-drive text-sm text-gray-400"></i>
+                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Google Drive</p>
+                </div>
+                <p id="drive_status_texto" class="text-[11px] text-gray-500 leading-snug">Verificando...</p>
+                <button id="btn_conectar_drive" onclick="conectarGoogleDrive()"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                    <i class="fab fa-google-drive"></i> Conectar com Google Drive
+                </button>
+                <button id="btn_desconectar_drive" onclick="desconectarGoogleDrive()"
+                    class="hidden w-full bg-gray-200 hover:bg-red-100 hover:text-red-600 text-gray-500 font-black text-[11px] py-2 px-3 rounded-lg transition-colors">
+                    Desconectar
+                </button>
+            </div>
+            <div class="bg-gray-50 p-3 rounded-xl border border-gray-100 flex flex-col gap-1 text-center">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Desenvolvido Para</p>
+                <p class="text-xs font-black text-gray-700">Pastoral dos Coroinhas - Cariré</p>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar relative">
+            
+            <div id="aba-dashboard" class="flex flex-col gap-6">
+                <div class="flex justify-between items-center border-b border-gray-200 pb-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-gray-800 tracking-wide">Painel de Controle</h2>
+                        <p class="text-sm text-gray-500">Métricas de engajamento, frequência e exportação.</p>
+                    </div>
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center dashboard-actions">
+                        <button onclick="abrirModalLancarFrequencia()" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-emerald-700 transition flex items-center gap-2 text-sm border-b-2 border-emerald-800">
+                            <i class="fas fa-check-square"></i> Marcar Frequência
+                        </button>
+                        <button onclick="exportarFrequenciaExcel()" class="bg-slate-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-slate-700 transition flex items-center gap-2 text-sm border-b-2 border-slate-800">
+                            <i class="fas fa-file-excel"></i> Exportar Planilha
+                        </button>
+                        <button onclick="document.getElementById('inputImportarFrequencia').click()" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center gap-2 text-sm border-b-2 border-blue-800">
+                            <i class="fas fa-upload"></i> Importar Planilha
+                        </button>
+                        <input type="file" id="inputImportarFrequencia" accept=".xlsx" class="hidden" onchange="importarFrequenciaExcel(event)">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="h-12 w-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 text-xl flex-none"><i class="fas fa-church"></i></div>
+                        <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Missas Monitoradas</p><h3 id="dash_total_missas" class="text-2xl font-black text-gray-800">0</h3></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="h-12 w-12 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 text-xl flex-none"><i class="fas fa-user-check"></i></div>
+                        <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Frequência Geral</p><h3 id="dash_media_presenca" class="text-2xl font-black text-gray-800">0%</h3></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="h-12 w-12 bg-amber-50 rounded-lg flex items-center justify-center text-amber-600 text-xl flex-none"><i class="fas fa-filter"></i></div>
+                        <div class="w-full"><p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Filtro Temporal</p><select id="dash_filtro_mes" onchange="carregarDadosDashboard()" class="w-full text-xs font-bold text-gray-700 bg-gray-50 p-1.5 border rounded-md"></select></div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4">
+                        <h4 class="font-black text-gray-700 text-sm uppercase tracking-wider border-b pb-2"><i class="fas fa-chart-line text-emerald-500 mr-2"></i>Histórico Recente de Assiduidade</h4>
+                        <div id="dash_container_grafico" class="flex-1 min-h-[250px] flex items-end justify-between gap-2 pt-4 px-2"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4">
+                        <h4 class="font-black text-gray-700 text-sm uppercase tracking-wider border-b pb-2"><i class="fas fa-trophy text-amber-500 mr-2"></i>Top 10 Mais Assíduos</h4>
+                        <div id="dash_lista_ranking" class="flex flex-col gap-2 overflow-y-auto max-h-[260px] custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="aba-cadastro" class="hidden flex flex-col gap-6 max-w-xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                <div class="border-b pb-4 text-center">
+                    <h2 class="text-2xl font-black text-gray-800">Novo Cadastro</h2>
+                </div>
+                <form id="form_cadastro" onsubmit="salvarCoroinha(event)" class="flex flex-col gap-4">
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-bold text-gray-500 uppercase">Nome Completo</label>
+                        <input type="text" id="cad_nome" required class="p-3 border rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-bold text-gray-500 uppercase">Função / Tipo</label>
+                        <select id="cad_tipo" class="p-3 border rounded-lg bg-gray-50 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-emerald-500">
+                            <option value="Coroinha">Coroinha</option>
+                            <option value="Mestre">Mestre</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-bold text-gray-500 uppercase">Data de Nascimento <span class="normal-case font-normal text-gray-400">(opcional)</span></label>
+                        <input type="date" id="cad_nascimento" class="p-3 border rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <button type="submit" class="bg-emerald-600 text-white font-bold py-3.5 rounded-lg shadow-md hover:bg-emerald-700 mt-4 text-sm uppercase">Cadastrar Membro</button>
+                </form>
+            </div>
+
+            <div id="aba-lista" class="hidden flex flex-col gap-6">
+                <div class="flex justify-between items-center border-b border-gray-200 pb-4">
+                    <div><h2 class="text-2xl font-black text-gray-800 tracking-wide">Quadro Geral de Membros</h2></div>
+                    <div class="flex gap-2">
+                        <button onclick="document.getElementById('inputExcelCoroinhas').click()" class="bg-gray-800 text-white font-bold px-4 py-2 rounded-lg text-xs"><i class="fas fa-file-import"></i> Importar .xlsx</button>
+                        <input type="file" id="inputExcelCoroinhas" accept=".xlsx" class="hidden" onchange="importarMembrosExcel(event)">
+                    </div>
+                </div>
+                
+                <!-- PAINEL DE RESUMO -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 sm:gap-4 min-w-0">
+                        <div class="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600 text-lg flex-none"><i class="fas fa-users"></i></div>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mobile-card-text">Total da Equipe</p>
+                            <h3 id="resumo_total" class="text-xl font-black text-gray-800 mobile-card-title">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-amber-100 flex items-center gap-4 min-w-0">
+                        <div class="h-10 w-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-600 text-lg flex-none"><i class="fas fa-crown"></i></div>
+                        <div class="min-w-0"><p class="text-[10px] font-bold text-amber-500 uppercase tracking-wider mobile-card-text">Mestres</p><h3 id="resumo_mestres" class="text-xl font-black text-amber-700 mobile-card-title">0</h3></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-emerald-100 flex items-center gap-4 min-w-0">
+                        <div class="h-10 w-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 text-lg flex-none"><i class="fas fa-pray"></i></div>
+                        <div class="min-w-0"><p class="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mobile-card-text">Coroinhas</p><h3 id="resumo_coroinhas" class="text-xl font-black text-emerald-700 mobile-card-title">0</h3></div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-6">
+                    
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                    
+                    <!-- Bloco dos Mestres (Esquerda) -->
+                    <div class="bg-white rounded-xl shadow-sm border border-amber-100 overflow-hidden">
+                        <div class="bg-amber-50 border-b border-amber-100 px-5 py-3 flex items-center gap-2">
+                            <i class="fas fa-crown text-amber-500"></i>
+                            <h3 class="font-black text-amber-800 uppercase tracking-widest text-xs">Mestres / Cerimoniários</h3>
+                        </div>
+                        <!-- Container com scroll horizontal caso a tela fique muito apertada -->
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="w-full text-left border-collapse min-w-[250px]">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b border-gray-100 text-[10px] font-black uppercase text-gray-400">
+                                        <th class="py-3 px-4 w-12">ID</th>
+                                        <th class="py-3 px-4">Nome Completo</th>
+                                        <th class="py-3 px-4 w-24 text-center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela_mestres" class="text-sm font-medium text-gray-600 divide-y divide-gray-50"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Bloco dos Coroinhas (Direita) -->
+                    <div class="bg-white rounded-xl shadow-sm border border-emerald-100 overflow-hidden">
+                        <div class="bg-emerald-50 border-b border-emerald-100 px-5 py-3 flex items-center gap-2">
+                            <i class="fas fa-pray text-emerald-500"></i>
+                            <h3 class="font-black text-emerald-800 uppercase tracking-widest text-xs">Coroinhas</h3>
+                        </div>
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="w-full text-left border-collapse min-w-[250px]">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b border-gray-100 text-[10px] font-black uppercase text-gray-400">
+                                        <th class="py-3 px-4 w-12">ID</th>
+                                        <th class="py-3 px-4">Nome Completo</th>
+                                        <th class="py-3 px-4 w-24 text-center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela_coroinhas_lista" class="text-sm font-medium text-gray-600 divide-y divide-gray-50"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+                </div>
+            </div>
+
+            <div id="aba-calendario" class="hidden flex flex-col gap-6 h-full">
+                <div class="flex justify-between items-center">
+                    <div><h2 class="text-2xl font-black text-gray-800">Grade de Escalas</h2><p class="text-sm text-gray-500">Agende missas e monte as equipes na grade mensal.</p></div>
+                    <button onclick="abrirModalCriarEvento()" class="bg-emerald-600 text-white font-bold py-2.5 px-5 rounded-lg shadow-sm hover:bg-emerald-700 text-sm flex items-center gap-2"><i class="fas fa-plus"></i> Nova Missa</button>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col flex-1 overflow-hidden">
+                    <div class="flex justify-between items-center p-4 bg-gray-50 border-b">
+                        <button onclick="mudarMesCalendario(-1)" class="p-2 hover:bg-gray-200 rounded-lg text-gray-600"><i class="fas fa-chevron-left"></i></button>
+                        <h3 id="titulo_mes_calendario" class="text-lg font-black text-gray-800 uppercase tracking-widest">Maio 2026</h3>
+                        <button onclick="mudarMesCalendario(1)" class="p-2 hover:bg-gray-200 rounded-lg text-gray-600"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div class="grid grid-cols-7 text-center text-xs font-black text-gray-400 bg-white border-b uppercase tracking-wider overflow-x-auto sm:overflow-x-visible">
+                        <div class="py-3">Dom</div><div class="py-3">Seg</div><div class="py-3">Ter</div><div class="py-3">Qua</div><div class="py-3">Qui</div><div class="py-3">Sex</div><div class="py-3">Sáb</div>
+                    </div>
+                    <div id="grade_calendario" class="calendario-grid flex-1 overflow-x-auto sm:overflow-x-visible overflow-y-auto"></div>
+                </div>
+            </div>
+
+            <div id="aba-formacao" class="hidden flex flex-col gap-6 overflow-y-auto custom-scrollbar pb-10 min-h-0">
+                <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center border-b border-gray-200 pb-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-gray-800 tracking-wide">Módulo de Formação</h2>
+                        <p class="text-sm text-gray-500">Gestão dos aspirantes, trilha de aprendizado e materiais.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-4"><i class="fas fa-folder-open mr-1"></i> Materiais de Apoio</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="border border-blue-100 bg-blue-50/50 p-4 rounded-xl flex items-center gap-4 hover:shadow-md transition cursor-pointer">
+                            <div class="h-10 w-10 bg-blue-500 rounded-lg flex items-center justify-center text-white text-lg flex-none"><i class="fas fa-file-pdf"></i></div>
+                            <div>
+                                <p class="text-sm font-black text-blue-900">Manual do Coroinha</p>
+                                <p class="text-[10px] font-bold text-blue-500 uppercase">Apostila Básica</p>
+                            </div>
+                        </div>
+                        <div class="border border-red-100 bg-red-50/50 p-4 rounded-xl flex items-center gap-4 hover:shadow-md transition cursor-pointer">
+                            <div class="h-10 w-10 bg-red-500 rounded-lg flex items-center justify-center text-white text-lg flex-none"><i class="fab fa-youtube"></i></div>
+                            <div>
+                                <p class="text-sm font-black text-red-900">Uso do Turíbulo</p>
+                                <p class="text-[10px] font-bold text-red-500 uppercase">Vídeo Prático</p>
+                            </div>
+                        </div>
+                        <div class="border border-amber-100 bg-amber-50/50 p-4 rounded-xl flex items-center gap-4 hover:shadow-md transition cursor-pointer">
+                            <div class="h-10 w-10 bg-amber-500 rounded-lg flex items-center justify-center text-white text-lg flex-none"><i class="fas fa-hands-praying"></i></div>
+                            <div>
+                                <p class="text-sm font-black text-amber-900">Orações do Altar</p>
+                                <p class="text-[10px] font-bold text-amber-500 uppercase">Textos Essenciais</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex-1 min-h-0">
+                    <div class="bg-gray-50 border-b border-gray-100 px-5 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-seedling text-emerald-500 text-lg"></i>
+                            <div>
+                                <h3 class="font-black text-gray-800 uppercase tracking-widest text-xs">Trilha de Formação</h3>
+                                <p class="text-[10px] text-gray-500 font-bold">Acompanhe a evolução de cada candidato na sequência de módulos.</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" id="novo_aspirante_nome" placeholder="Nome do candidato..." class="text-xs p-2.5 font-bold border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none w-full sm:w-48 bg-white">
+                            <button onclick="salvarAspirante()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-black shadow-sm transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto"><i class="fas fa-plus"></i> Inserir</button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse min-w-[500px]">
+                            <thead>
+                                <tr class="bg-gray-50 border-b border-gray-100 text-[10px] font-black uppercase text-gray-400">
+                                    <th class="py-4 px-6 w-16">ID</th>
+                                    <th class="py-4 px-6">Nome do Aspirante</th>
+                                    <th class="py-4 px-6 w-1/3">Trilha de Aprendizado</th>
+                                    <th class="py-4 px-6 w-40 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela_aspirantes" class="text-sm font-medium text-gray-600 divide-y divide-gray-50">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <div id="modalMapaTrilha" class="hidden fixed inset-0 bg-gray-900/95 backdrop-blur-md flex items-center justify-center p-4 z-50">
+        <button onclick="fecharModal('modalMapaTrilha')" class="absolute top-6 right-8 text-white/50 hover:text-white text-4xl transition-colors"><i class="fas fa-times"></i></button>
+        
+        <div class="flex flex-col items-center w-full max-w-5xl">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-black text-white tracking-widest font-serif uppercase"><i class="fas fa-map-marked-alt text-amber-500 mr-3"></i>Mapa de Formação</h2>
+                <p id="mapa_nome_aspirante" class="text-emerald-400 font-bold tracking-widest uppercase mt-2">NOME DO ASPIRANTE</p>
+                <p class="text-gray-400 text-xs mt-2 font-medium">Clique no módulo atual (pulsante) para registrar que o aspirante aprendeu o conteúdo.</p>
+            </div>
+            
+            <div class="w-full bg-gray-800 rounded-3xl border-2 border-gray-700 shadow-2xl p-8 overflow-x-auto custom-scrollbar relative">
+                <div id="trilha_container_nos" class="flex flex-col items-center w-full min-w-0 py-8 px-6">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEvento" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
+            <h3 id="titulo_modal_evento" class="text-xl font-black text-gray-800 mb-4 border-b pb-2">Agendar Missa</h3>
+            <p class="text-xs text-gray-400 font-bold mb-4 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                <i class="fas fa-info-circle text-emerald-500 mr-1"></i>
+                Após salvar, você irá direto para a escala dos coroinhas.
+            </p>
+            <form id="form_evento" onsubmit="salvarEvento(event)" class="flex flex-col gap-3">
+                <input type="hidden" id="evt_id">
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-black text-gray-400 uppercase">Data da Celebração</label>
+                    <input type="date" id="evt_data" required class="p-2.5 border rounded-lg bg-gray-50 text-sm focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[10px] font-black text-gray-400 uppercase">Horário</label>
+                        <input type="time" id="evt_horario" required class="p-2.5 border rounded-lg bg-gray-50 text-sm focus:outline-none">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label id="lbl_evt_igreja" class="text-[10px] font-black text-gray-400 uppercase">Igreja Principal</label>
+                        <input type="text" id="evt_igreja" placeholder="Ex: Matriz"
+                            class="p-2.5 border rounded-lg bg-gray-50 text-sm focus:outline-none transition-colors"
+                            oninput="sincronizarCamposLocal()">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 border-t pt-3 mt-1">
+                    <div class="flex flex-col gap-1">
+                        <label id="lbl_evt_local_livre" class="text-[10px] font-black text-amber-600 uppercase">Outro Local <span id="lbl_local_opcional" class="normal-case font-normal text-gray-400">(opcional)</span></label>
+                        <input type="text" id="evt_local_livre" placeholder="Ex: Praça"
+                            class="p-2.5 border rounded-lg bg-amber-50 text-sm transition-colors"
+                            oninput="sincronizarCamposLocal()">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[10px] font-black text-amber-600 uppercase">Nome da Missa / Solenidade <span class="text-red-500">*</span></label>
+                        <input type="text" id="evt_funcao_extra" placeholder="Ex: Pentecostes, 3º Domingo..." class="p-2.5 border rounded-lg bg-amber-50 text-sm" required>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-2 border-t pt-3 mt-1">
+                    <label class="text-[10px] font-black text-gray-400 uppercase">Cor na Grade do Calendário</label>
+                    <div class="flex gap-3 flex-wrap" id="seletor_cores">
+                        <button type="button" onclick="selecionarCorEvento('#166534','#ffffff','#14532d')" data-cor="#166534" class="cor-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform shadow" style="background:#166534;" title="Verde"></button>
+                        <button type="button" onclick="selecionarCorEvento('#1d4ed8','#ffffff','#1e3a8a')" data-cor="#1d4ed8" class="cor-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform shadow" style="background:#1d4ed8;" title="Azul"></button>
+                        <button type="button" onclick="selecionarCorEvento('#b45309','#ffffff','#92400e')" data-cor="#b45309" class="cor-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform shadow" style="background:#b45309;" title="Âmbar"></button>
+                        <button type="button" onclick="selecionarCorEvento('#be185d','#ffffff','#9d174d')" data-cor="#be185d" class="cor-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform shadow" style="background:#be185d;" title="Rosa"></button>
+                        <button type="button" onclick="selecionarCorEvento('#7c3aed','#ffffff','#5b21b6')" data-cor="#7c3aed" class="cor-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform shadow" style="background:#7c3aed;" title="Roxo"></button>
+                        <button type="button" onclick="selecionarCorEvento('#ea580c','#ffffff','#c2410c')" data-cor="#ea580c" class="cor-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform shadow" style="background:#ea580c;" title="Laranja"></button>
+                        <button type="button" onclick="selecionarCorEvento('#dc2626','#ffffff','#991b1b')" data-cor="#dc2626" class="cor-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform shadow" style="background:#dc2626;" title="Vermelho"></button>
+                        <button type="button" onclick="selecionarCorEvento('#475569','#ffffff','#334155')" data-cor="#475569" class="cor-btn w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform shadow" style="background:#475569;" title="Cinza"></button>
+                    </div>
+                    <input type="hidden" id="evt_cor_bg"     value="#166534">
+                    <input type="hidden" id="evt_cor_texto"  value="#ffffff">
+                    <input type="hidden" id="evt_cor_borda"  value="#14532d">
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button type="button" onclick="fecharModal('modalEvento')" class="flex-1 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-emerald-600 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-2">
+                        <i class="fas fa-arrow-right"></i> Salvar e Escalar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalEditarCoroinha" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl w-full max-w-sm p-6 shadow-2xl">
+            <h3 class="text-xl font-black text-gray-800 mb-4 border-b pb-2">Editar Membro</h3>
+            <form id="form_editar_coroinha" onsubmit="salvarEdicaoCoroinha(event)" class="flex flex-col gap-3">
+                <input type="hidden" id="edit_cad_id">
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-black text-gray-400 uppercase">Nome Completo</label>
+                    <input type="text" id="edit_cad_nome" required class="p-2.5 border rounded-lg bg-gray-50 text-sm">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-black text-gray-400 uppercase">Função / Tipo</label>
+                    <select id="edit_cad_tipo" class="p-2.5 border rounded-lg bg-gray-50 text-sm">
+                        <option value="Coroinha">Coroinha</option>
+                        <option value="Mestre">Mestre</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-black text-gray-400 uppercase">Data de Nascimento <span class="normal-case font-normal text-gray-400">(opcional)</span></label>
+                    <input type="date" id="edit_cad_nascimento" class="p-2.5 border rounded-lg bg-gray-50 text-sm">
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button type="button" onclick="fecharModal('modalEditarCoroinha')" class="flex-1 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg shadow">Atualizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalAcoesEvento" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <header class="bg-gray-900 text-white px-6 py-5 relative">
+                <button onclick="fecharModal('modalAcoesEvento')" class="absolute top-4 right-4 text-gray-400 hover:text-white text-lg"><i class="fas fa-times"></i></button>
+                <p class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1"><i class="fas fa-church mr-1"></i>Missa Selecionada</p>
+                <h3 id="acoes_titulo_evento" class="text-lg font-black text-white tracking-wide font-serif">Igreja</h3>
+                <p id="acoes_subtitulo_evento" class="text-xs text-gray-400 font-bold mt-0.5">Data e Horário</p>
+            </header>
+            <div class="p-4 flex flex-col gap-2.5">
+                <button id="btn_acao_escalar" onclick="executarAcaoEvento('escalar')" class="flex items-center gap-4 w-full p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 transition-all text-left group">
+                    <div class="h-10 w-10 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-base flex-none group-hover:scale-105 transition-transform">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-black text-gray-800">Escalar Coroinhas</p>
+                        <p class="text-xs text-gray-500 font-medium">Montar ou editar a equipe desta missa</p>
+                    </div>
+                    <i class="fas fa-chevron-right text-emerald-400 ml-auto text-xs"></i>
+                </button>
+
+                <button id="btn_acao_editar" onclick="executarAcaoEvento('editar')" class="flex items-center gap-4 w-full p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 transition-all text-left group">
+                    <div class="h-10 w-10 bg-blue-500 rounded-lg flex items-center justify-center text-white text-base flex-none group-hover:scale-105 transition-transform">
+                        <i class="fas fa-edit"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-black text-gray-800">Editar Informações</p>
+                        <p class="text-xs text-gray-500 font-medium">Alterar data, horário, local ou vaga extra</p>
+                    </div>
+                    <i class="fas fa-chevron-right text-blue-400 ml-auto text-xs"></i>
+                </button>
+
+                <button id="btn_acao_compartilhar" onclick="executarAcaoEvento('compartilhar')" class="flex items-center gap-4 w-full p-4 rounded-xl border-2 border-purple-200 bg-purple-50 hover:bg-purple-100 hover:border-purple-400 transition-all text-left group">
+                    <div class="h-10 w-10 bg-purple-500 rounded-lg flex items-center justify-center text-white text-base flex-none group-hover:scale-105 transition-transform">
+                        <i class="fab fa-whatsapp"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-black text-gray-800">Card para WhatsApp</p>
+                        <p class="text-xs text-gray-500 font-medium">Gerar imagem da escala para compartilhar</p>
+                    </div>
+                    <i class="fas fa-chevron-right text-purple-400 ml-auto text-xs"></i>
+                </button>
+
+                <button id="btn_acao_apagar" onclick="executarAcaoEvento('apagar')" class="flex items-center gap-4 w-full p-4 rounded-xl border-2 border-red-200 bg-red-50 hover:bg-red-100 hover:border-red-400 transition-all text-left group mt-1">
+                    <div class="h-10 w-10 bg-red-500 rounded-lg flex items-center justify-center text-white text-base flex-none group-hover:scale-105 transition-transform">
+                        <i class="fas fa-trash-alt"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-black text-red-700">Apagar Missa</p>
+                        <p class="text-xs text-red-400 font-medium">Remove a missa e toda a escala</p>
+                    </div>
+                    <i class="fas fa-chevron-right text-red-300 ml-auto text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEscala" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl w-full max-w-2xl flex flex-col overflow-hidden shadow-2xl" style="height: min(90vh, 620px); max-height: min(90vh, 620px);">
+            <header class="bg-gray-900 text-white px-6 py-4 flex justify-between items-center flex-none">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-0.5"><i class="fas fa-users mr-1"></i>Equipe da Missa</p>
+                    <h3 id="modal_titulo_evento" class="text-lg font-black tracking-wide font-serif">Missa</h3>
+                    <p id="modal_subtitulo_evento" class="text-xs text-gray-400 font-bold tracking-wider mt-0.5">Local | Horário</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn_editar_info_missa" onclick="abrirEdicaoDoModal()" title="Editar informações desta missa" class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black px-3 py-2 rounded-lg transition-all">
+                        <i class="fas fa-edit"></i> Editar Missa
+                    </button>
+                    <button onclick="fecharModal('modalEscala')" class="text-gray-400 hover:text-white text-xl ml-2"><i class="fas fa-times"></i></button>
+                </div>
+            </header>
+            <div id="modal_container_vagas" class="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col gap-3 bg-gray-50/50" style="min-height:0;"></div>
+            <footer class="bg-white border-t p-4 flex justify-between items-center gap-4 flex-none">
+                <button onclick="clonarEscalaAnterior()" class="bg-amber-500 text-white font-black px-4 py-2 rounded-lg text-xs"><i class="fas fa-clone"></i> Copiar Escala Anterior</button>
+                <div class="flex items-center gap-3">
+                    <span id="escala_status" class="text-xs text-emerald-600 font-bold hidden"><i class="fas fa-check-circle"></i> Salvo!</span>
+                    <button onclick="salvarEscalaEquipe()" class="bg-emerald-600 text-white font-black px-6 py-2.5 rounded-lg text-xs hover:bg-emerald-700 transition-colors flex items-center gap-1.5"><i class="fas fa-save"></i> Salvar Equipe</button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <div id="modalCompartilhar" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div class="flex flex-col items-center gap-5 my-auto">
+            <div id="bloco_escala_imagem"
+                 class="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+                 style="width:520px; font-family: 'Georgia', 'Times New Roman', serif;">
+                <div class="flex flex-col items-center px-12 pt-10 pb-6 border-b border-gray-200">
+                    <img src="logo-paroquia.jpeg"
+                         class="h-20 w-20 rounded-full object-cover mb-5 shadow"
+                         style="border: 3px solid #e5e7eb;">
+                    <h2 style="font-size:26px; font-weight:900; letter-spacing:0.12em; text-transform:uppercase; color:#1a202c; font-family:'Georgia',serif; margin:0 0 6px 0;">
+                        Escala Litúrgica
+                    </h2>
+                    <p id="img_titulo"
+                       style="font-size:15px; font-weight:700; color:#166534; font-family:'Georgia',serif;
+                              letter-spacing:0; margin:0 0 10px 0; display:none; text-align:center;">
+                        Solenidade
+                    </p>
+                    <p id="img_igreja"
+                       style="font-size:16px; font-weight:700; color:#1a202c; margin:0 0 4px 0; font-family:'Georgia',serif;">
+                        Igreja
+                    </p>
+                    <p id="img_data"
+                       style="font-size:12px; font-weight:600; color:#6b7280; letter-spacing:0.06em; margin:0;">
+                        Data e Horário
+                    </p>
+                </div>
+                <div id="img_lista" class="flex flex-col px-8 py-6 gap-3"></div>
+                <div style="border-top:1px solid #f3f4f6; padding:14px 32px; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <img src="logo-paroquia.jpeg"
+                         style="height:16px; width:16px; border-radius:50%; object-fit:cover; opacity:0.4;">
+                    <span style="font-size:10px; font-weight:700; color:#9ca3af; letter-spacing:0.1em; text-transform:uppercase; font-family:sans-serif;">
+                        Paróquia Santo Antônio de Pádua - Cariré/CE
+                    </span>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl flex justify-between items-center gap-4 w-[520px]">
+                <button onclick="fecharModal('modalCompartilhar')"
+                    class="bg-gray-100 text-gray-600 font-bold px-4 py-2 rounded-lg text-xs hover:bg-gray-200">
+                    Fechar
+                </button>
+                <button onclick="copiarImagemEscalaZap()"
+                    class="bg-blue-600 text-white font-black px-5 py-2 rounded-lg text-xs hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-copy"></i> Copiar Para WhatsApp
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalPreviewFrequencia" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl w-full max-w-3xl flex flex-col shadow-2xl overflow-hidden" style="height: min(92vh, 650px); max-height: min(92vh, 650px);">
+            <header class="bg-gray-900 text-white px-6 py-4 flex-none flex justify-between items-start">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1">
+                        <i class="fas fa-clipboard-check mr-1"></i>Revisão de Frequência
+                    </p>
+                    <h3 class="text-lg font-black">Confirmar antes de salvar</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Ajuste P/F, adicione membros extras e confirme ao final.</p>
+                </div>
+                <button onclick="fecharModal('modalPreviewFrequencia')" class="text-gray-400 hover:text-white text-xl mt-1">
+                    <i class="fas fa-times"></i>
+                </button>
+            </header>
+            <div class="grid grid-cols-4 border-b bg-gray-50 flex-none">
+                <div class="py-3 px-4 text-center border-r">
+                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-wider">Total</p>
+                    <p id="prev_count_total" class="text-xl font-black text-gray-800">0</p>
+                </div>
+                <div class="py-3 px-4 text-center border-r bg-emerald-50">
+                    <p class="text-[10px] font-black text-emerald-500 uppercase tracking-wider">Presentes</p>
+                    <p id="prev_count_pres" class="text-xl font-black text-emerald-600">0</p>
+                </div>
+                <div class="py-3 px-4 text-center border-r bg-red-50">
+                    <p class="text-[10px] font-black text-red-400 uppercase tracking-wider">Faltantes</p>
+                    <p id="prev_count_falt" class="text-xl font-black text-red-500">0</p>
+                </div>
+                <div class="py-3 px-4 text-center">
+                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-wider">Pendentes</p>
+                    <p id="prev_count_pend" class="text-xl font-black text-amber-500">0</p>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead class="sticky top-0 bg-white z-10 shadow-sm">
+                        <tr class="text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">
+                            <th class="py-3 px-3">Data</th>
+                            <th class="py-3 px-3">Membro</th>
+                            <th class="py-3 px-3">Função</th>
+                            <th class="py-3 px-3">Missa</th>
+                            <th class="py-3 px-3 text-center w-28">Presença</th>
+                        </tr>
+                    </thead>
+                    <tbody id="preview_freq_tbody"></tbody>
+                </table>
+            </div>
+            <div id="painel_extra_freq" class="hidden border-t bg-amber-50 px-6 py-4 flex-none">
+                <p class="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3">
+                    <i class="fas fa-user-plus mr-1"></i>Adicionar Membro Extra à Frequência
+                </p>
+                <div class="flex flex-wrap gap-3 items-end">
+                    <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
+                        <label class="text-[10px] font-black text-gray-500 uppercase">Nome do Membro</label>
+                        <input id="extra_freq_nome" type="text" placeholder="Ex: João Silva"
+                            class="p-2 border rounded-lg text-xs font-bold bg-white focus:ring-2 focus:ring-amber-400 focus:outline-none">
+                    </div>
+                    <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
+                        <label class="text-[10px] font-black text-gray-500 uppercase">Função</label>
+                        <input id="extra_freq_funcao" type="text" placeholder="Ex: Apoio"
+                            class="p-2 border rounded-lg text-xs font-bold bg-white focus:ring-2 focus:ring-amber-400 focus:outline-none">
+                    </div>
+                    <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
+                        <label class="text-[10px] font-black text-gray-500 uppercase">Missa</label>
+                        <select id="extra_freq_missa"
+                            class="p-2 border rounded-lg text-xs font-bold bg-white focus:ring-2 focus:ring-amber-400 focus:outline-none">
+                        </select>
+                    </div>
+                    <button onclick="confirmarMembroExtraFrequencia()"
+                        class="bg-amber-500 hover:bg-amber-600 text-white font-black text-xs px-4 py-2 rounded-lg transition-colors flex-none">
+                        <i class="fas fa-plus mr-1"></i>Adicionar
+                    </button>
+                    <button onclick="document.getElementById('painel_extra_freq').classList.add('hidden')"
+                        class="text-gray-400 hover:text-gray-600 text-xs font-bold flex-none">Cancelar</button>
+                </div>
+            </div>
+            <footer class="border-t bg-white px-6 py-4 flex justify-between items-center gap-3 flex-none">
+                <button onclick="adicionarMembroExtraFrequencia()"
+                    class="flex items-center gap-2 border-2 border-dashed border-amber-300 text-amber-600 font-black text-xs
+                           px-4 py-2 rounded-lg hover:bg-amber-50 hover:border-amber-500 transition-all">
+                    <i class="fas fa-user-plus"></i> Membro Extra
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="fecharModal('modalPreviewFrequencia')"
+                        class="bg-gray-100 text-gray-600 font-bold px-4 py-2 rounded-lg text-xs hover:bg-gray-200">
+                        Cancelar
+                    </button>
+                    <button onclick="confirmarImportacaoFrequencia()"
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-2 rounded-lg text-xs
+                               shadow transition-colors flex items-center gap-2">
+                        <i class="fas fa-check-circle"></i> Confirmar e Salvar no Dashboard
+                    </button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <div id="modalLancarFrequencia" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl w-full max-w-5xl flex flex-col shadow-2xl overflow-hidden" style="max-height:92vh;">
+            <header class="bg-gray-900 text-white px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1"><i class="fas fa-user-check mr-1"></i>Lançar Frequência</p>
+                    <h3 class="text-lg font-black">Registro de presença no sistema</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Selecione a missa e marque cada membro como presente ou ausente.</p>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+                    <select id="freq_evento_select" onchange="renderizarTabelaLancarFrequencia()" class="w-full sm:w-auto border border-gray-300 rounded-lg bg-white px-4 py-3 text-sm font-bold text-gray-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
+                        <option value="">Selecione uma missa</option>
+                    </select>
+                    <button onclick="fecharModal('modalLancarFrequencia')" class="bg-gray-100 text-gray-600 font-bold px-4 py-3 rounded-lg text-sm hover:bg-gray-200 transition-colors">Fechar</button>
+                </div>
+            </header>
+            <div class="overflow-y-auto p-6 flex-1 custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead class="sticky top-0 bg-white z-10 shadow-sm">
+                        <tr class="text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">
+                            <th class="py-3 px-3">Membro</th>
+                            <th class="py-3 px-3">Função</th>
+                            <th class="py-3 px-3">Status</th>
+                            <th class="py-3 px-3 text-center w-32">Presença</th>
+                        </tr>
+                    </thead>
+                    <tbody id="freq_tbody"></tbody>
+                </table>
+            </div>
+            <footer class="border-t bg-white px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <div class="text-xs text-gray-500">O registro ficará salvo diretamente no banco do servidor.</div>
+                <button onclick="salvarFrequenciaSistema()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-3 rounded-lg text-sm shadow transition-colors flex items-center gap-2">
+                    <i class="fas fa-save"></i> Salvar Frequência
+                </button>
+            </footer>
+        </div>
+    </div>
+
+    <div id="modalExportarFrequencia" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl w-full max-w-lg flex flex-col shadow-2xl overflow-hidden" style="height: min(88vh, 600px); max-height: min(88vh, 600px);">
+            <header class="bg-gray-900 text-white px-6 py-4 flex-none flex justify-between items-start">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1">
+                        <i class="fas fa-file-excel mr-1"></i>Exportar Frequência
+                    </p>
+                    <h3 class="text-lg font-black">Selecionar Missas</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Escolha quais missas incluir na planilha.</p>
+                </div>
+                <button onclick="fecharModal('modalExportarFrequencia')" class="text-gray-400 hover:text-white text-xl mt-1">
+                    <i class="fas fa-times"></i>
+                </button>
+            </header>
+            <div class="flex items-center justify-between px-6 py-3 bg-gray-50 border-b flex-none">
+                <span id="export_contador" class="text-xs font-black text-gray-500">Nenhuma selecionada</span>
+                <div class="flex gap-2">
+                    <button onclick="selecionarTodasMissasExport(true)"
+                        class="text-xs font-black text-emerald-600 hover:text-emerald-800 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition-all border border-emerald-200">
+                        <i class="fas fa-check-double mr-1"></i>Todas
+                    </button>
+                    <button onclick="selecionarTodasMissasExport(false)"
+                        class="text-xs font-black text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-all border border-gray-200">
+                        Limpar
+                    </button>
+                </div>
+            </div>
+            <div id="export_lista_missas" class="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2" style="min-height:0;"></div>
+            <footer class="border-t bg-white px-6 py-4 flex justify-between items-center gap-3 flex-none">
+                <button onclick="fecharModal('modalExportarFrequencia')"
+                    class="bg-gray-100 text-gray-600 font-bold px-4 py-2 rounded-lg text-xs hover:bg-gray-200">
+                    Cancelar
+                </button>
+                <button id="btn_confirmar_export" onclick="confirmarExportacaoFrequencia()"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-2 rounded-lg text-xs
+                           shadow transition-colors flex items-center gap-2 opacity-50 cursor-not-allowed">
+                    <i class="fas fa-file-download"></i> Gerar Planilha Excel
+                </button>
+            </footer>
+        </div>
+    </div>
+
+    <div id="modalConfirmarInvestidura" class="hidden fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
+        <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl text-center transform transition-all">
+            <div class="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-emerald-100">
+                <i class="fas fa-hands-praying text-4xl text-emerald-600"></i>
+            </div>
+            <h3 class="text-2xl font-black text-gray-800 mb-2 font-serif">Aprovar Investidura?</h3>
+            <p class="text-sm text-gray-500 mb-8 leading-relaxed">
+                Você está prestes a entregar a túnica para <strong id="conf_nome_investidura" class="text-emerald-700 text-base uppercase tracking-wider">Nome</strong>. <br>Ele(a) está pronto(a) para avançar e se tornar oficialmente um Coroinha da paróquia.
+            </p>
+            <div class="flex gap-3">
+                <button onclick="fecharModal('modalConfirmarInvestidura')" class="flex-1 bg-gray-100 text-gray-500 font-bold py-3.5 rounded-xl hover:bg-gray-200 transition-all">Ainda não</button>
+                <button id="btn_confirmar_investidura_final" class="flex-1 bg-emerald-600 text-white font-black py-3.5 rounded-xl hover:bg-emerald-700 transition-all shadow-md flex items-center justify-center gap-2">
+                    <i class="fas fa-check-circle"></i> Sim, Promover!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalCelebracao" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[80]">
+        <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl text-center relative overflow-hidden transform scale-100 animate-[pulse_0.3s_ease-out_1]">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500"></div>
+            
+            <div class="mt-4 mb-6">
+                <i id="cel_icone" class="fas fa-medal text-7xl text-amber-400 drop-shadow-lg animate-bounce"></i>
+            </div>
+            
+            <h3 id="cel_titulo" class="text-2xl font-black text-gray-800 mb-3 font-serif uppercase tracking-widest text-amber-600">Título</h3>
+            <p id="cel_mensagem" class="text-sm text-gray-600 mb-8 font-medium leading-relaxed px-4">Mensagem...</p>
+            
+            <button onclick="fecharModal('modalCelebracao')" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white font-black py-4 rounded-xl transition-all shadow-lg text-sm uppercase tracking-widest">
+                Maravilha!
+            </button>
+        </div>
+    </div>
+
+    <div id="modalConteudoModulo" class="hidden fixed inset-0 bg-gray-900/90 backdrop-blur-md flex items-center justify-center p-4 z-[60]">
+        <div class="bg-white rounded-3xl w-full max-w-2xl flex flex-col overflow-hidden shadow-2xl transform transition-all" style="max-height: 85vh;">
+            
+            <header class="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 relative flex-none">
+                <button onclick="fecharModal('modalConteudoModulo')" class="absolute top-4 right-5 text-gray-400 hover:text-white text-2xl transition-colors"><i class="fas fa-times"></i></button>
+                <div class="flex items-center gap-4">
+                    <div id="cont_icone_bg" class="w-14 h-14 rounded-full bg-amber-500 border-2 border-amber-300 flex items-center justify-center flex-none shadow-lg">
+                        <i id="cont_icone" class="fas fa-book-open text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-0.5">Conteúdo da Trilha</p>
+                        <h3 id="cont_titulo" class="text-2xl font-black font-serif tracking-wide">Título da Aula</h3>
+                        <p id="cont_subtitulo" class="text-xs text-gray-300 font-medium">Subtítulo</p>
+                    </div>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-8 custom-scrollbar bg-gray-50 flex flex-col gap-6">
+                <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                    <h4 class="text-sm font-black text-gray-800 uppercase tracking-widest border-b pb-2 mb-4"><i class="fas fa-scroll text-gray-400 mr-2"></i>O que aprender aqui</h4>
+                    <div id="cont_texto" class="text-sm text-gray-600 leading-relaxed space-y-3 font-medium">
+                        </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 px-2"><i class="fas fa-paperclip mr-1"></i> Materiais Anexos</h4>
+                    <div id="cont_materiais" class="flex flex-col gap-2">
+                        </div>
+                </div>
+            </div>
+
+            <footer class="bg-white border-t p-5 flex justify-end flex-none">
+                <button id="btn_concluir_modulo" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-8 py-3.5 rounded-xl shadow-md transition-all flex items-center gap-2">
+                    <i class="fas fa-check-double"></i> Marcar como Aprendido
+                </button>
+                <div id="msg_modulo_concluido" class="hidden text-emerald-600 font-black text-sm px-4 py-3 flex items-center gap-2 bg-emerald-50 rounded-xl border border-emerald-100">
+                    <i class="fas fa-check-circle text-lg"></i> Etapa já concluída
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

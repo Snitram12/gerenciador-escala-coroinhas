@@ -6,12 +6,11 @@
 
 require('dotenv').config(); // Puxa as variáveis do arquivo .env
 
-const { shell } = require('electron');
-const http      = require('http');
-const https     = require('https');
-const fs        = require('fs');
-const path      = require('path');
-const { app }   = require('electron');
+const { shell, app } = require('electron');
+const { createServer } = require('http');
+const { request, get } = require('https');
+const { existsSync, readFileSync, writeFileSync, unlinkSync } = require('fs');
+const { join } = require('path');
 
 // ─── Credenciais OAuth ────────────────────────────────────────────────────────
 const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
@@ -20,14 +19,14 @@ const REDIRECT_URI  = 'http://localhost:42813';
 const SCOPES        = 'https://www.googleapis.com/auth/drive.file';
 
 // ─── Onde o token fica salvo localmente ──────────────────────────────────────
-const TOKEN_PATH = path.join(app.getPath('userData'), 'gdrive_token.json');
+const TOKEN_PATH = join(app.getPath('userData'), 'gdrive_token.json');
 
 // ─── Helpers HTTP ─────────────────────────────────────────────────────────────
 function httpsPost(url, headers, body) {
     return new Promise((resolve, reject) => {
         const urlObj = new URL(url);
         const data   = typeof body === 'string' ? body : JSON.stringify(body);
-        const req = https.request({
+        const req = request({
             hostname: urlObj.hostname,
             path:     urlObj.pathname + urlObj.search,
             method:   'POST',
@@ -58,7 +57,7 @@ function httpsPostMultipart(metadata, imageBuffer, accessToken) {
             Buffer.from(`\r\n--${boundary}--`)
         ]);
 
-        const req = https.request({
+        const req = request({
             hostname: 'www.googleapis.com',
             path:     '/upload/drive/v3/files?uploadType=multipart',
             method:   'POST',
@@ -84,7 +83,7 @@ function httpsPostMultipart(metadata, imageBuffer, accessToken) {
 function httpsGet(url, accessToken) {
     return new Promise((resolve, reject) => {
         const urlObj = new URL(url);
-        https.get({
+        get({
             hostname: urlObj.hostname,
             path:     urlObj.pathname + urlObj.search,
             headers:  { 'Authorization': `Bearer ${accessToken}` }
@@ -102,8 +101,8 @@ function httpsGet(url, accessToken) {
 // ─── Token ───────────────────────────────────────────────────────────────────
 function carregarToken() {
     try {
-        if (fs.existsSync(TOKEN_PATH)) {
-            return JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+        if (existsSync(TOKEN_PATH)) {
+            return JSON.parse(readFileSync(TOKEN_PATH, 'utf8'));
         }
     } catch {}
     return null;
@@ -112,7 +111,7 @@ function carregarToken() {
 function salvarToken(token) {
     // Guarda o momento em que o token foi obtido para checar expiração
     token.obtained_at = Date.now();
-    fs.writeFileSync(TOKEN_PATH, JSON.stringify(token, null, 2));
+    writeFileSync(TOKEN_PATH, JSON.stringify(token, null, 2));
 }
 
 async function refreshAccessToken(token) {
@@ -155,7 +154,7 @@ async function getAccessToken() {
 function autenticar() {
     return new Promise((resolve, reject) => {
         // Servidor local temporário para capturar o code
-        const server = http.createServer(async (req, res) => {
+        const server = createServer(async (req, res) => {
             const url    = new URL(req.url, 'http://localhost:42813');
             const code   = url.searchParams.get('code');
             const errMsg = url.searchParams.get('error');
@@ -247,7 +246,7 @@ async function obterOuCriarPasta(accessToken) {
 function httpsPostMultipartJSON(metadata, accessToken) {
     return new Promise((resolve, reject) => {
         const body = JSON.stringify(metadata);
-        const req  = https.request({
+        const req  = request({
             hostname: 'www.googleapis.com',
             path:     '/drive/v3/files',
             method:   'POST',
@@ -293,7 +292,7 @@ async function conectar() {
  */
 function desconectar() {
     _pastaIdCache = null;
-    if (fs.existsSync(TOKEN_PATH)) fs.unlinkSync(TOKEN_PATH);
+    if (existsSync(TOKEN_PATH)) unlinkSync(TOKEN_PATH);
 }
 
 /**
@@ -328,7 +327,7 @@ async function uploadImagem(imagemData, nomeArquivo) {
 async function tornarPublico(fileId, accessToken) {
     return new Promise((resolve) => {
         const body = JSON.stringify({ role: 'reader', type: 'anyone' });
-        const req  = https.request({
+        const req  = request({
             hostname: 'www.googleapis.com',
             path:     `/drive/v3/files/${fileId}/permissions`,
             method:   'POST',

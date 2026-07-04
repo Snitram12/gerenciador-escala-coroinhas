@@ -1,10 +1,15 @@
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
-const { app } = require('electron');
+
+let Database;
+try {
+  ({ DatabaseSync: Database } = require('node:sqlite'));
+} catch (error) {
+  Database = require('better-sqlite3');
+}
 
 // Descobre a pasta segura do Windows para não ter erro de permissão
-const appDataPath = process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Application Support' : process.env.HOME + "/.local/share");
+const appDataPath = process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Application Support' : process.env.HOME + '/.local/share');
 const pastaSegura = path.join(appDataPath, 'escala-coroinhas');
 
 if (!fs.existsSync(pastaSegura)) {
@@ -12,7 +17,7 @@ if (!fs.existsSync(pastaSegura)) {
 }
 
 const dbPath = path.join(pastaSegura, 'escala_coroinhas.db');
-const db = new Database(dbPath);
+const db = typeof Database === 'function' ? new Database(dbPath) : new Database(dbPath);
 
 // Criação das Tabelas Exatamente como Eram!
 db.exec(`
@@ -23,7 +28,8 @@ db.exec(`
     responsavel TEXT,
     telefone TEXT,
     endereco TEXT,
-    nivel TEXT DEFAULT 'coroinha'
+    nivel TEXT DEFAULT 'coroinha',
+    tipo TEXT DEFAULT 'Coroinha'
   );
 
   CREATE TABLE IF NOT EXISTS funcoes (
@@ -52,6 +58,13 @@ db.exec(`
     FOREIGN KEY(id_evento) REFERENCES eventos(id),
     FOREIGN KEY(id_funcao) REFERENCES funcoes(id),
     FOREIGN KEY(id_coroinha) REFERENCES coroinhas(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT DEFAULT 'user'
   );
 `);
 
